@@ -233,7 +233,8 @@ private data object IgnoreMiuiFontSettingsDiskRead : IgnoreViolationRule {
         if (violation !is DiskReadViolation) return false
 
         return violation.stackTrace.any {
-            it.className == "miui.util.font.FontSettings"
+            it.className == "miui.util.font.FontSettings" ||
+                it.className == "miui.util.font.MultiLangHelper"
         }
     }
 }

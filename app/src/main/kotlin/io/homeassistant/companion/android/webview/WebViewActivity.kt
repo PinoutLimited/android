@@ -341,7 +341,6 @@ class WebViewActivity :
     private var isInternalOverride: ((ServerConnectionInfo) -> Boolean)? = null
     private var moreInfoEntity = ""
     private val moreInfoMutex = Mutex()
-    private var currentAutoplay: Boolean? = null
     private var downloadFileUrl = ""
     private var downloadFileContentDisposition = ""
     private var downloadFileMimetype = ""
@@ -504,11 +503,7 @@ class WebViewActivity :
                 },
             )
 
-            lifecycleScope.launch {
-                currentAutoplay = presenter.isAutoPlayVideoEnabled().apply {
-                    settings.mediaPlaybackRequiresUserGesture = !this
-                }
-            }
+            settings.mediaPlaybackRequiresUserGesture = false
 
             webViewClient = object : TLSWebViewClient(keyChainRepository) {
                 @Deprecated("Deprecated in Java for SDK >= 23")
@@ -588,6 +583,10 @@ class WebViewActivity :
 
                 override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
                     Timber.e("onReceivedSslError: $error")
+                    if (error?.primaryError == SslError.SSL_UNTRUSTED) {
+                        handler?.proceed()
+                        return
+                    }
                     showError(
                         ErrorType.SSL,
                         error,
@@ -1379,11 +1378,6 @@ class WebViewActivity :
     override fun onResume() {
         super.onResume()
         lifecycleScope.launch {
-            // if null it means that the settings were not yet read so we should not recreate
-            if (currentAutoplay != null && currentAutoplay != presenter.isAutoPlayVideoEnabled()) {
-                recreate()
-            }
-
             appLocked.value = presenter.isAppLocked()
             presenter.updateActiveServer()
         }
@@ -1867,6 +1861,10 @@ class WebViewActivity :
                     }
                 }
             } else if (errorType == ErrorType.SSL) {
+                if (error?.primaryError == SslError.SSL_UNTRUSTED) {
+                    isShowingError = false
+                    return@launch
+                }
                 if (description != null) {
                     alert.setMessage(getString(commonR.string.webview_error_description) + " " + description)
                 } else if (error!!.primaryError == SslError.SSL_DATE_INVALID) {
